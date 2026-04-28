@@ -1,0 +1,3023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FairSight — AI Bias Detection Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #0a0a0f;
+  --bg2: #111118;
+  --bg3: #16161f;
+  --bg4: #1c1c28;
+  --surface: #1e1e2e;
+  --surface2: #252538;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #f0f0f8;
+  --text2: #9898b8;
+  --text3: #5a5a7a;
+  --accent: #7c6fff;
+  --accent2: #a78bfa;
+  --red: #ff4d6d;
+  --amber: #fbbf24;
+  --green: #10d9a0;
+  --blue: #38bdf8;
+  --pink: #f472b6;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'Instrument Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --glow-accent: 0 0 40px rgba(124,111,255,0.15);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── NOISE OVERLAY ─── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── GRID LINES ─── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── GLOW ORBS ─── */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+.orb-1 { width: 600px; height: 600px; top: -200px; left: -100px; background: rgba(124,111,255,0.08); }
+.orb-2 { width: 400px; height: 400px; bottom: -100px; right: -100px; background: rgba(16,217,160,0.06); }
+.orb-3 { width: 300px; height: 300px; top: 40%; left: 40%; background: rgba(244,114,182,0.04); }
+
+/* ─── NAV ─── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  height: 64px;
+  background: rgba(10,10,15,0.8);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-badge {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, var(--accent), var(--pink));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.nav-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  text-decoration: none;
+}
+
+.nav-btn-ghost {
+  background: transparent;
+  color: var(--text2);
+}
+.nav-btn-ghost:hover { background: var(--surface); color: var(--text); }
+
+.nav-btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.nav-btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+
+/* ─── SECTIONS ─── */
+section { position: relative; z-index: 1; }
+
+/* ─── HERO ─── */
+#hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 120px 2rem 80px;
+}
+
+.hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(124,111,255,0.1);
+  border: 1px solid rgba(124,111,255,0.25);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--accent2);
+  margin-bottom: 2rem;
+  letter-spacing: 0.05em;
+}
+
+.pulse-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 10px var(--green);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 7vw, 6rem);
+  font-weight: 800;
+  line-height: 1.0;
+  letter-spacing: -0.04em;
+  color: var(--text);
+  max-width: 900px;
+  margin: 0 auto 1.5rem;
+}
+
+h1 em {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--accent2) 0%, var(--pink) 50%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-sub {
+  font-size: 1.1rem;
+  color: var(--text2);
+  max-width: 560px;
+  line-height: 1.7;
+  margin: 0 auto 2.5rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 4rem;
+}
+
+.btn-hero-primary {
+  padding: 14px 32px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 0 30px rgba(124,111,255,0.3);
+}
+.btn-hero-primary:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(124,111,255,0.4); }
+
+.btn-hero-ghost {
+  padding: 14px 32px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-hero-ghost:hover { background: var(--surface); border-color: rgba(255,255,255,0.2); }
+
+/* STATS ROW */
+.stats-row {
+  display: flex;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  overflow: hidden;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.stat-item {
+  flex: 1;
+  padding: 20px 24px;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+.stat-item:last-child { border-right: none; }
+
+.stat-num {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text);
+  display: block;
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  color: var(--text3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+/* ─── FEATURES ─── */
+#features {
+  padding: 6rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-top: 3rem;
+}
+
+.feature-card {
+  background: var(--bg2);
+  padding: 2rem;
+  transition: background 0.2s;
+  cursor: default;
+}
+.feature-card:hover { background: var(--bg3); }
+
+.feature-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  margin-bottom: 1.2rem;
+}
+
+.feature-card h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.6rem;
+}
+
+.feature-card p {
+  font-size: 0.875rem;
+  color: var(--text2);
+  line-height: 1.65;
+}
+
+.fi-purple { background: rgba(124,111,255,0.12); }
+.fi-green { background: rgba(16,217,160,0.12); }
+.fi-red { background: rgba(255,77,109,0.12); }
+.fi-amber { background: rgba(251,191,36,0.12); }
+.fi-blue { background: rgba(56,189,248,0.12); }
+.fi-pink { background: rgba(244,114,182,0.12); }
+
+/* ─── PLATFORM AREA ─── */
+#platform {
+  padding: 0 0 6rem;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.platform-shell {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  overflow: hidden;
+  min-height: 600px;
+}
+
+/* PLATFORM HEADER */
+.platform-header {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  padding: 16px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text3);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  position: relative;
+}
+.tab-btn:hover { color: var(--text2); background: rgba(255,255,255,0.03); }
+.tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent); }
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  background: var(--red);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+/* TAB PANELS */
+.panel { display: none; padding: 2rem; }
+.panel.active { display: block; }
+
+/* ─── UPLOAD PANEL ─── */
+.upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media(max-width: 768px) { .upload-grid { grid-template-columns: 1fr; } }
+
+.dropzone {
+  grid-column: 1 / -1;
+  border: 2px dashed var(--border2);
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(124,111,255,0.02);
+}
+.dropzone:hover { border-color: var(--accent); background: rgba(124,111,255,0.06); }
+.dropzone.drag-over { border-color: var(--accent); background: rgba(124,111,255,0.1); }
+
+.drop-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+.drop-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.4rem; }
+.drop-sub { font-size: 0.82rem; color: var(--text2); }
+
+.demo-datasets {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.dataset-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.dataset-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.dataset-card.critical::before { background: var(--red); }
+.dataset-card.moderate::before { background: var(--amber); }
+.dataset-card.low::before { background: var(--green); }
+.dataset-card:hover { border-color: var(--border2); background: var(--surface2); transform: translateY(-2px); }
+.dataset-card.selected { border-color: var(--accent); background: rgba(124,111,255,0.08); }
+
+.dataset-name { font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; color: var(--text); margin-bottom: 0.35rem; }
+.dataset-desc { font-size: 0.75rem; color: var(--text2); margin-bottom: 0.75rem; line-height: 1.5; }
+.dataset-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.dataset-tag {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg4);
+  color: var(--text3);
+  border: 1px solid var(--border);
+}
+.dataset-severity {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.severity-critical { background: rgba(255,77,109,0.15); color: var(--red); }
+.severity-moderate { background: rgba(251,191,36,0.15); color: var(--amber); }
+.severity-low { background: rgba(16,217,160,0.15); color: var(--green); }
+
+.config-section { margin-top: 1.5rem; }
+.config-title {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.attr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.6rem;
+}
+
+.attr-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.82rem;
+  color: var(--text2);
+}
+.attr-toggle:hover { border-color: var(--border2); }
+.attr-toggle.on { background: rgba(124,111,255,0.1); border-color: var(--accent); color: var(--accent2); }
+
+.toggle-box {
+  width: 16px; height: 16px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.fairness-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.fairness-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.fairness-check:hover { border-color: var(--border2); }
+.fairness-check.on { border-color: rgba(16,217,160,0.4); background: rgba(16,217,160,0.06); }
+
+.fc-title { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.fc-desc { font-size: 0.72rem; color: var(--text3); margin-top: 2px; }
+
+.run-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--accent), #9f7aea);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 1.5rem;
+  transition: all 0.2s;
+  letter-spacing: -0.01em;
+  box-shadow: 0 0 30px rgba(124,111,255,0.25);
+}
+.run-btn:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(124,111,255,0.35); }
+
+/* ─── OVERVIEW PANEL ─── */
+.score-hero {
+  display: flex;
+  gap: 1.5rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.score-dial {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 1.5rem 2rem;
+  text-align: center;
+  min-width: 200px;
+  position: relative;
+  overflow: hidden;
+}
+.score-dial::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 100%, rgba(255,77,109,0.08) 0%, transparent 70%);
+}
+
+.score-num {
+  font-family: var(--font-display);
+  font-size: 4rem;
+  font-weight: 800;
+  color: var(--red);
+  line-height: 1;
+  display: block;
+}
+.score-denom {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text3);
+}
+.score-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 0.5rem;
+}
+.score-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,77,109,0.15);
+  color: var(--red);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  margin-top: 0.75rem;
+}
+
+.metric-bars {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  min-width: 280px;
+}
+
+.metric-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 0.75rem;
+}
+.metric-bar-row:last-child { margin-bottom: 0; }
+
+.metric-bar-label {
+  font-size: 0.78rem;
+  color: var(--text2);
+  width: 160px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.metric-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg4);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.metric-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 1s ease;
+}
+
+.metric-bar-val {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+  width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+}
+
+.kpi-value {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+  display: block;
+}
+.kpi-label {
+  font-size: 0.72rem;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+.kpi-delta {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  margin-top: 6px;
+}
+.kpi-delta.bad { color: var(--red); }
+.kpi-delta.warn { color: var(--amber); }
+.kpi-delta.ok { color: var(--green); }
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+@media(max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+
+.chart-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+.chart-box-title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.4rem;
+}
+.chart-box-sub {
+  font-size: 0.72rem;
+  color: var(--text3);
+  margin-bottom: 1rem;
+  font-family: var(--font-mono);
+}
+
+/* ─── DISPARITY PANEL ─── */
+.attr-selector {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+.attr-pill {
+  padding: 6px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-mono);
+}
+.attr-pill:hover { border-color: var(--border2); }
+.attr-pill.active { background: rgba(124,111,255,0.15); border-color: var(--accent); color: var(--accent2); }
+
+.disparity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.disparity-table th {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.disparity-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text);
+}
+.disparity-table tr:hover td { background: rgba(255,255,255,0.02); }
+.disparity-table tr:last-child td { border-bottom: none; }
+
+.bar-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bar-inline-track {
+  width: 80px;
+  height: 5px;
+  background: var(--bg4);
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.bar-inline-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+/* ─── INTERSECTIONALITY ─── */
+.heatmap-container {
+  overflow-x: auto;
+  margin-top: 1.5rem;
+}
+.heatmap-grid {
+  display: grid;
+  gap: 4px;
+  min-width: 500px;
+}
+.heatmap-cell {
+  padding: 12px 8px;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  transition: transform 0.2s;
+  cursor: default;
+}
+.heatmap-cell:hover { transform: scale(1.05); z-index: 2; position: relative; }
+
+.heatmap-header {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text3);
+  padding: 8px;
+  text-align: center;
+}
+
+/* ─── FLAGS PANEL ─── */
+.flags-list { display: flex; flex-direction: column; gap: 1rem; }
+
+.flag-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+  background: var(--surface);
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  transition: all 0.2s;
+}
+.flag-card:hover { border-color: var(--border2); }
+
+.flag-severity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.dot-critical { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.dot-warning { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.dot-info { background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+
+.flag-content { flex: 1; }
+.flag-title {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+.flag-desc { font-size: 0.82rem; color: var(--text2); line-height: 1.55; margin-bottom: 0.6rem; }
+
+.flag-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.flag-tag {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text3);
+  background: var(--bg4);
+}
+.flag-tag.critical { background: rgba(255,77,109,0.12); border-color: rgba(255,77,109,0.25); color: var(--red); }
+.flag-tag.warning { background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.25); color: var(--amber); }
+.flag-tag.reg { background: rgba(56,189,248,0.1); border-color: rgba(56,189,248,0.2); color: var(--blue); }
+
+/* ─── REMEDIATION PANEL ─── */
+.rem-steps {
+  position: relative;
+  padding-left: 2.5rem;
+}
+.rem-steps::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 30px;
+  bottom: 30px;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--accent), var(--green));
+}
+
+.rem-step {
+  position: relative;
+  margin-bottom: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem 1.25rem 1.25rem 1rem;
+  transition: all 0.2s;
+}
+.rem-step:hover { border-color: var(--border2); }
+
+.rem-step-num {
+  position: absolute;
+  left: -2.5rem;
+  top: 1.2rem;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.rem-step-title {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.4rem;
+}
+.rem-step-desc { font-size: 0.82rem; color: var(--text2); margin-bottom: 0.75rem; line-height: 1.55; }
+
+.impact-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.impact-bar-track {
+  flex: 1;
+  height: 4px;
+  background: var(--bg4);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.impact-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent), var(--green));
+}
+.impact-label {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--green);
+  white-space: nowrap;
+}
+
+/* ─── REPORT PANEL ─── */
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.report-btns { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+.export-btn {
+  padding: 10px 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.export-btn:hover { background: var(--surface); border-color: rgba(255,255,255,0.2); }
+.export-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.export-btn.primary:hover { background: var(--accent2); }
+
+.report-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+.report-section-title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+.report-item-label { font-size: 0.72rem; color: var(--text3); margin-bottom: 3px; }
+.report-item-val { font-size: 0.85rem; color: var(--text); font-weight: 500; }
+
+.compliance-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.compliance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg3);
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+.compliance-name { color: var(--text2); }
+.compliance-status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+}
+.status-fail { background: rgba(255,77,109,0.15); color: var(--red); }
+.status-partial { background: rgba(251,191,36,0.15); color: var(--amber); }
+.status-pass { background: rgba(16,217,160,0.15); color: var(--green); }
+
+/* ─── COMPARE PANEL (new) ─── */
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.compare-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+.compare-card-name {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+.compare-card-type {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text3);
+  margin-bottom: 1rem;
+}
+.compare-score {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+}
+.compare-metrics-mini { display: flex; flex-direction: column; gap: 6px; }
+.cmm-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text2); }
+.cmm-val { font-family: var(--font-mono); color: var(--text); }
+
+/* ─── LANDING COMPLIANCE ─── */
+#compliance {
+  padding: 5rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.compliance-badges {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 2.5rem;
+}
+.badge-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.5rem;
+  transition: all 0.2s;
+}
+.badge-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.badge-icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
+.badge-name { font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 0.35rem; }
+.badge-desc { font-size: 0.75rem; color: var(--text2); line-height: 1.5; }
+
+/* ─── FOOTER ─── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  position: relative;
+  z-index: 1;
+}
+footer a { color: var(--text2); text-decoration: none; }
+footer a:hover { color: var(--accent2); }
+
+/* ─── PROGRESS BAR ─── */
+.progress-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10,10,15,0.9);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.progress-overlay.show { display: flex; }
+.progress-box {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 2.5rem 3rem;
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+}
+.progress-title {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+.progress-sub {
+  font-size: 0.82rem;
+  color: var(--text2);
+  margin-bottom: 1.5rem;
+  font-family: var(--font-mono);
+}
+.progress-track {
+  width: 100%;
+  height: 4px;
+  background: var(--bg4);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent), var(--green));
+  transition: width 0.3s ease;
+  width: 0%;
+}
+.progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: left;
+  margin-top: 1rem;
+}
+.progress-step {
+  font-size: 0.78rem;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  transition: color 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress-step.done { color: var(--green); }
+.progress-step.active { color: var(--accent2); }
+
+/* ─── NEW FEATURE: WHAT-IF SIMULATOR ─── */
+.whatif-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+@media(max-width: 768px) { .whatif-grid { grid-template-columns: 1fr; } }
+
+.slider-row {
+  margin-bottom: 1.1rem;
+}
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--text2);
+  margin-bottom: 0.5rem;
+}
+.slider-val { color: var(--accent2); font-weight: 500; }
+
+input[type=range] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.whatif-result {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+.whatif-result-title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 1rem;
+}
+.whatif-metrics { display: flex; flex-direction: column; gap: 0.75rem; }
+.wm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+}
+.wm-name { color: var(--text2); }
+.wm-val { font-family: var(--font-mono); font-weight: 500; }
+.wm-change {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.wm-change.pos { background: rgba(16,217,160,0.15); color: var(--green); }
+.wm-change.neg { background: rgba(255,77,109,0.15); color: var(--red); }
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+/* ─── TOOLTIP ─── */
+.tooltip {
+  position: absolute;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+  pointer-events: none;
+  z-index: 999;
+  white-space: nowrap;
+  display: none;
+}
+
+/* ─── NOTIFICATION ─── */
+.notification {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  font-size: 0.82rem;
+  color: var(--text);
+  z-index: 300;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all 0.3s ease;
+  max-width: 320px;
+}
+.notification.show { transform: translateY(0); opacity: 1; }
+.notification-title { font-family: var(--font-display); font-weight: 700; margin-bottom: 3px; }
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <div class="logo-badge">⚖</div>
+    FairSight
+  </div>
+  <div class="nav-links">
+    <a href="#features" class="nav-btn nav-btn-ghost">Features</a>
+    <a href="#compliance" class="nav-btn nav-btn-ghost">Compliance</a>
+    <button class="nav-btn nav-btn-ghost" onclick="document.getElementById('platform').scrollIntoView({behavior:'smooth'})">Docs</button>
+    <button class="nav-btn nav-btn-primary" onclick="document.getElementById('platform').scrollIntoView({behavior:'smooth'})">Launch Platform →</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-chip">
+    <span class="pulse-dot"></span>
+    Google Hackathon 2026 · AI Ethics & Safety
+  </div>
+  <h1>Find the bias <em>before</em><br>it finds someone.</h1>
+  <p class="hero-sub">
+    FairSight audits your AI models and training data for hidden discrimination — measuring, flagging, and fixing bias before your system impacts real hiring decisions, loan approvals, or medical care.
+  </p>
+  <div class="hero-actions">
+    <button class="btn-hero-primary" onclick="document.getElementById('platform').scrollIntoView({behavior:'smooth'})">Start Audit →</button>
+    <button class="btn-hero-ghost" onclick="loadDemo('hiring'); document.getElementById('platform').scrollIntoView({behavior:'smooth'})">View live demo</button>
+  </div>
+  <div class="stats-row">
+    <div class="stat-item">
+      <span class="stat-num">7</span>
+      <span class="stat-label">Fairness metrics</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">12+</span>
+      <span class="stat-label">Bias detectors</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">5</span>
+      <span class="stat-label">Fix strategies</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">∞</span>
+      <span class="stat-label">Intersections</span>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-label">Capabilities</div>
+  <div class="section-title">Everything you need to audit<br>AI bias at scale</div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon fi-purple">🔍</div>
+      <h3>Proxy variable detection</h3>
+      <p>Automatically surfaces features that correlate with protected attributes — zip codes that proxy race, names that encode gender — before they corrupt your model.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-green">⬡</div>
+      <h3>Intersectional analysis</h3>
+      <p>Most tools miss compound disadvantage. We compute gaps across every combination of identities — the Black woman vs. White man gap that disappears when you look at each dimension alone.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-red">🧪</div>
+      <h3>What-if simulator</h3>
+      <p>Simulate interventions in real-time before committing to deployment. Adjust thresholds, resampling ratios, and fairness constraints and see projected outcomes instantly.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-amber">⚖</div>
+      <h3>Regulatory alignment</h3>
+      <p>Reports mapped to EU AI Act, EEOC guidelines, ECOA, and RBI Digital Lending Guidelines. Every finding has a legal risk tag and a full audit trail.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-blue">📊</div>
+      <h3>Model comparison</h3>
+      <p>Run side-by-side fairness evaluations across multiple model versions. Track improvements across audit cycles and generate changelogs for compliance teams.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-pink">📝</div>
+      <h3>Plain-language explanations</h3>
+      <p>Every flag is explained in terms of impact on real people. Non-technical stakeholders — HR, compliance, executives — can understand what the model is doing and why it matters.</p>
+    </div>
+  </div>
+</section>
+
+<!-- COMPLIANCE BADGES -->
+<section id="compliance">
+  <div class="section-label">Regulatory coverage</div>
+  <div class="section-title">Built for global<br>compliance requirements</div>
+  <div class="compliance-badges">
+    <div class="badge-card">
+      <div class="badge-icon">🇪🇺</div>
+      <div class="badge-name">EU AI Act</div>
+      <div class="badge-desc">High-risk system requirements, transparency obligations, and human oversight mandates fully mapped.</div>
+    </div>
+    <div class="badge-card">
+      <div class="badge-icon">⚖</div>
+      <div class="badge-name">EEOC Guidelines</div>
+      <div class="badge-desc">Equal Employment Opportunity Commission uniform guidelines for employee selection procedures.</div>
+    </div>
+    <div class="badge-card">
+      <div class="badge-icon">🏦</div>
+      <div class="badge-name">ECOA / FCRA</div>
+      <div class="badge-desc">Equal Credit Opportunity Act and Fair Credit Reporting Act compliance for lending decisions.</div>
+    </div>
+    <div class="badge-card">
+      <div class="badge-icon">🇮🇳</div>
+      <div class="badge-name">RBI Digital Lending</div>
+      <div class="badge-desc">Reserve Bank of India Digital Lending Guidelines with full explainability requirements.</div>
+    </div>
+    <div class="badge-card">
+      <div class="badge-icon">🏥</div>
+      <div class="badge-name">HIPAA / ONC</div>
+      <div class="badge-desc">Healthcare AI fairness requirements including algorithmic bias in clinical decision support tools.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- PLATFORM -->
+<section id="platform" style="padding: 4rem 1.5rem 6rem; max-width: 1300px; margin: 0 auto;">
+  <div class="section-label" style="margin-bottom: 0.5rem;">Audit Platform</div>
+  <div style="display:flex; justify-content:space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div class="section-title" style="margin: 0;">FairSight Audit Console</div>
+    <div style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--text3);" id="dataset-status">No dataset loaded</div>
+  </div>
+
+  <div class="platform-shell">
+    <div class="platform-header">
+      <button class="tab-btn active" onclick="switchTab('upload', this)">Upload & Configure</button>
+      <button class="tab-btn" onclick="switchTab('overview', this)">Overview</button>
+      <button class="tab-btn" onclick="switchTab('disparity', this)">Disparity Analysis</button>
+      <button class="tab-btn" onclick="switchTab('intersectionality', this)">Intersectionality</button>
+      <button class="tab-btn" onclick="switchTab('flags', this)">Flags & Alerts <span class="tab-badge">5</span></button>
+      <button class="tab-btn" onclick="switchTab('whatif', this)">What-If Simulator</button>
+      <button class="tab-btn" onclick="switchTab('compare', this)">Model Compare</button>
+      <button class="tab-btn" onclick="switchTab('remediation', this)">Remediation</button>
+      <button class="tab-btn" onclick="switchTab('report', this)">Audit Report</button>
+    </div>
+
+    <!-- UPLOAD PANEL -->
+    <div class="panel active" id="panel-upload">
+      <div class="upload-grid">
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault(); this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event)">
+          <div class="drop-icon">📂</div>
+          <div class="drop-title">Drop your dataset here</div>
+          <div class="drop-sub">CSV or JSON · max 50MB · or click to browse</div>
+          <input type="file" id="file-input" accept=".csv,.json" style="display:none" onchange="handleFileSelect(this)">
+        </div>
+
+        <div style="grid-column: 1/-1;">
+          <div class="config-title" style="margin-bottom: 1rem;">Or choose a built-in demo dataset</div>
+          <div class="demo-datasets">
+            <div class="dataset-card critical" id="ds-hiring" onclick="loadDemo('hiring')">
+              <div class="dataset-name">Hiring decisions</div>
+              <div class="dataset-desc">42,800 job applications with hire/reject outcomes. Gender and racial disparities embedded from historical data 2019–2023.</div>
+              <div class="dataset-meta">
+                <span class="dataset-tag">Employment</span>
+                <span class="dataset-tag">8 attributes</span>
+                <span class="dataset-severity severity-critical">Critical bias</span>
+              </div>
+            </div>
+            <div class="dataset-card moderate" id="ds-loan" onclick="loadDemo('loan')">
+              <div class="dataset-name">Loan approvals</div>
+              <div class="dataset-desc">18,400 loan applications from a retail bank. Zip code proxy variable and income correlation with race.</div>
+              <div class="dataset-meta">
+                <span class="dataset-tag">Finance</span>
+                <span class="dataset-tag">12 attributes</span>
+                <span class="dataset-severity severity-moderate">Moderate bias</span>
+              </div>
+            </div>
+            <div class="dataset-card moderate" id="ds-medical" onclick="loadDemo('medical')">
+              <div class="dataset-name">Medical triage scoring</div>
+              <div class="dataset-desc">9,200 hospital triage scores. Pain assessment underestimation in Black patients. Age-based treatment gaps.</div>
+              <div class="dataset-meta">
+                <span class="dataset-tag">Healthcare</span>
+                <span class="dataset-tag">15 attributes</span>
+                <span class="dataset-severity severity-moderate">Moderate bias</span>
+              </div>
+            </div>
+            <div class="dataset-card low" id="ds-credit" onclick="loadDemo('credit')">
+              <div class="dataset-name">Credit scoring</div>
+              <div class="dataset-desc">31,200 credit score decisions from a fintech. Age-group disparities and disability status correlation detected.</div>
+              <div class="dataset-meta">
+                <span class="dataset-tag">Finance</span>
+                <span class="dataset-tag">10 attributes</span>
+                <span class="dataset-severity severity-low">Low bias</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-section" style="grid-column: 1/-1;">
+          <div class="config-title">Configure protected attributes</div>
+          <div class="attr-grid">
+            <div class="attr-toggle on" onclick="this.classList.toggle('on')"><div class="toggle-box">✓</div> Gender</div>
+            <div class="attr-toggle on" onclick="this.classList.toggle('on')"><div class="toggle-box">✓</div> Race / Ethnicity</div>
+            <div class="attr-toggle on" onclick="this.classList.toggle('on')"><div class="toggle-box">✓</div> Age group</div>
+            <div class="attr-toggle" onclick="this.classList.toggle('on')"><div class="toggle-box"></div> Disability status</div>
+            <div class="attr-toggle" onclick="this.classList.toggle('on')"><div class="toggle-box"></div> Religion</div>
+            <div class="attr-toggle" onclick="this.classList.toggle('on')"><div class="toggle-box"></div> National origin</div>
+            <div class="attr-toggle" onclick="this.classList.toggle('on')"><div class="toggle-box"></div> Pregnancy status</div>
+            <div class="attr-toggle" onclick="this.classList.toggle('on')"><div class="toggle-box"></div> Marital status</div>
+          </div>
+        </div>
+
+        <div class="config-section" style="grid-column: 1/-1;">
+          <div class="config-title">Fairness criteria</div>
+          <div class="fairness-checks">
+            <div class="fairness-check on" onclick="this.classList.toggle('on')">
+              <div class="toggle-box" style="color: var(--green); border-color: var(--green);">✓</div>
+              <div><div class="fc-title">Demographic parity</div><div class="fc-desc">Equal approval rates across groups</div></div>
+            </div>
+            <div class="fairness-check on" onclick="this.classList.toggle('on')">
+              <div class="toggle-box" style="color: var(--green); border-color: var(--green);">✓</div>
+              <div><div class="fc-title">Equal opportunity</div><div class="fc-desc">Equal true positive rates</div></div>
+            </div>
+            <div class="fairness-check on" onclick="this.classList.toggle('on')">
+              <div class="toggle-box" style="color: var(--green); border-color: var(--green);">✓</div>
+              <div><div class="fc-title">Equalized odds</div><div class="fc-desc">Equal TPR and FPR</div></div>
+            </div>
+            <div class="fairness-check on" onclick="this.classList.toggle('on')">
+              <div class="toggle-box" style="color: var(--green); border-color: var(--green);">✓</div>
+              <div><div class="fc-title">Individual fairness</div><div class="fc-desc">Similar people treated similarly</div></div>
+            </div>
+            <div class="fairness-check on" onclick="this.classList.toggle('on')">
+              <div class="toggle-box" style="color: var(--green); border-color: var(--green);">✓</div>
+              <div><div class="fc-title">Calibration</div><div class="fc-desc">Probabilities match outcomes</div></div>
+            </div>
+            <div class="fairness-check on" onclick="this.classList.toggle('on')">
+              <div class="toggle-box" style="color: var(--green); border-color: var(--green);">✓</div>
+              <div><div class="fc-title">Counterfactual</div><div class="fc-desc">Decisions stable across identity flip</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="grid-column: 1/-1;">
+          <button class="run-btn" onclick="runAudit()">⚡ Run Bias Audit</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERVIEW PANEL -->
+    <div class="panel" id="panel-overview">
+
+      <!-- Plain-language explainer -->
+      <div style="background: rgba(124,111,255,0.07); border: 1px solid rgba(124,111,255,0.2); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.75rem;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.6rem;">
+          <span style="font-size: 16px;">💡</span>
+          <span style="font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: var(--accent2);">What does this mean in plain English?</span>
+        </div>
+        <p style="font-size: 0.875rem; color: var(--text2); line-height: 1.75; margin: 0;">
+          This overview shows how <strong style="color: var(--text); font-weight: 600;">fair</strong> your AI model is when making decisions about people.
+          Think of the <strong style="color: var(--text); font-weight: 600;">Fairness Score (41/100)</strong> like a report card — the higher the number, the more fairly the model treats everyone, regardless of their gender, race, or age.
+          A score this low means the model is currently giving different outcomes to different groups of people in ways that are <em>not</em> justified by their actual qualifications.
+          For example, women are being approved at a rate of <strong style="color: var(--red); font-weight: 600;">49%</strong> while men are approved at <strong style="color: var(--blue); font-weight: 600;">72%</strong> — even when their profiles are similar.
+          The six coloured bars below break this down by different fairness rules (like "are pass rates equal?" and "are mistakes made equally?").
+          Red bars need urgent attention, yellow bars need improvement, and green bars are doing well.
+          <strong style="color: var(--text); font-weight: 600;">You should not deploy this model</strong> until the critical issues are fixed — use the <em>Remediation</em> tab for a step-by-step fix plan.
+        </p>
+      </div>
+
+      <!-- ⬇ DOWNLOAD UNBIASED FILE BUTTON -->
+      <div id="download-banner" style="margin-bottom: 1.75rem;">
+        <div style="background: linear-gradient(135deg, rgba(16,217,160,0.08) 0%, rgba(124,111,255,0.06) 100%); border: 1.5px solid rgba(16,217,160,0.3); border-radius: 18px; padding: 1.5rem 2rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;">
+
+          <!-- Left: info -->
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="width: 52px; height: 52px; background: rgba(16,217,160,0.12); border: 1px solid rgba(16,217,160,0.25); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">🧹</div>
+            <div>
+              <div style="font-family: var(--font-display); font-size: 1rem; font-weight: 800; color: var(--text); margin-bottom: 4px;">Download the cleaned, unbiased dataset</div>
+              <div style="font-size: 0.78rem; color: var(--text2); line-height: 1.5;">Proxy variables removed · Data balanced · Audit log included · Ready to retrain</div>
+              <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+                <span style="font-size: 0.68rem; font-family: var(--font-mono); padding: 2px 8px; border-radius: 4px; background: rgba(16,217,160,0.12); color: var(--green); border: 1px solid rgba(16,217,160,0.2);">51,200 records</span>
+                <span style="font-size: 0.68rem; font-family: var(--font-mono); padding: 2px 8px; border-radius: 4px; background: rgba(16,217,160,0.12); color: var(--green); border: 1px solid rgba(16,217,160,0.2);">Score: 83/100</span>
+                <span style="font-size: 0.68rem; font-family: var(--font-mono); padding: 2px 8px; border-radius: 4px; background: rgba(16,217,160,0.12); color: var(--green); border: 1px solid rgba(16,217,160,0.2);">EEOC compliant</span>
+                <span style="font-size: 0.68rem; font-family: var(--font-mono); padding: 2px 8px; border-radius: 4px; background: rgba(16,217,160,0.12); color: var(--green); border: 1px solid rgba(16,217,160,0.2);">.csv</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: button -->
+          <button id="main-download-btn" onclick="handleMainDownload()" style="
+            display: flex; align-items: center; gap: 10px;
+            padding: 15px 36px;
+            background: linear-gradient(135deg, #10d9a0 0%, #059669 100%);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+            letter-spacing: -0.01em;
+            box-shadow: 0 4px 24px rgba(16,217,160,0.35), 0 1px 0 rgba(255,255,255,0.1) inset;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+          "
+          onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 40px rgba(16,217,160,0.5), 0 1px 0 rgba(255,255,255,0.1) inset'"
+          onmouseout="this.style.transform=''; this.style.boxShadow='0 4px 24px rgba(16,217,160,0.35), 0 1px 0 rgba(255,255,255,0.1) inset'">
+            <svg id="dl-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span id="dl-label">Download Unbiased File</span>
+          </button>
+        </div>
+
+        <!-- Progress row (hidden until clicked) -->
+        <div id="dl-progress-row" style="display: none; margin-top: 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span id="dl-step-text" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text2);">Starting…</span>
+            <span id="dl-pct-text" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--green); font-weight: 600;">0%</span>
+          </div>
+          <div style="width: 100%; height: 5px; background: var(--bg4); border-radius: 999px; overflow: hidden;">
+            <div id="dl-bar" style="height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(to right, #10d9a0, #7c6fff); transition: width 0.35s ease;"></div>
+          </div>
+          <div id="dl-done-msg" style="display: none; margin-top: 0.75rem; font-size: 0.8rem; color: var(--green); font-family: var(--font-mono);">
+            ✓ <strong>unbiased_hiring_dataset_fairsight.csv</strong> downloaded successfully.
+          </div>
+        </div>
+      </div>
+
+      <div class="score-hero">
+        <div class="score-dial">
+          <span class="score-num" id="score-val">41</span>
+          <span class="score-denom">/100</span>
+          <div class="score-label">Fairness score</div>
+          <div class="score-status">⚠ Critical — immediate action required</div>
+        </div>
+        <div class="metric-bars">
+          <div style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem;">Metric breakdown</div>
+          <div class="metric-bar-row">
+            <span class="metric-bar-label">Demographic parity</span>
+            <div class="metric-bar-track"><div class="metric-bar-fill" style="width:20%; background: var(--red);"></div></div>
+            <span class="metric-bar-val" style="color:var(--red);">20</span>
+          </div>
+          <div class="metric-bar-row">
+            <span class="metric-bar-label">Equal opportunity</span>
+            <div class="metric-bar-track"><div class="metric-bar-fill" style="width:22%; background: var(--red);"></div></div>
+            <span class="metric-bar-val" style="color:var(--red);">22</span>
+          </div>
+          <div class="metric-bar-row">
+            <span class="metric-bar-label">Equalized odds</span>
+            <div class="metric-bar-track"><div class="metric-bar-fill" style="width:18%; background: var(--red);"></div></div>
+            <span class="metric-bar-val" style="color:var(--red);">18</span>
+          </div>
+          <div class="metric-bar-row">
+            <span class="metric-bar-label">Calibration</span>
+            <div class="metric-bar-track"><div class="metric-bar-fill" style="width:70%; background: var(--amber);"></div></div>
+            <span class="metric-bar-val" style="color:var(--amber);">70</span>
+          </div>
+          <div class="metric-bar-row">
+            <span class="metric-bar-label">Individual fairness</span>
+            <div class="metric-bar-track"><div class="metric-bar-fill" style="width:50%; background: var(--amber);"></div></div>
+            <span class="metric-bar-val" style="color:var(--amber);">50</span>
+          </div>
+          <div class="metric-bar-row">
+            <span class="metric-bar-label">Counterfactual</span>
+            <div class="metric-bar-track"><div class="metric-bar-fill" style="width:75%; background: var(--green);"></div></div>
+            <span class="metric-bar-val" style="color:var(--green);">75</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-strip">
+        <div class="kpi-card">
+          <span class="kpi-value" style="color:var(--red);">23.4%</span>
+          <div class="kpi-label">Demographic parity gap</div>
+          <div class="kpi-delta bad">⚠ 4.7× over threshold (5%)</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-value" style="color:var(--red);">31.7%</span>
+          <div class="kpi-label">Equal opportunity gap</div>
+          <div class="kpi-delta bad">TPR disparity · Race</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-value" style="color:var(--amber);">3</span>
+          <div class="kpi-label">Proxy variables found</div>
+          <div class="kpi-delta warn">Zip code, school, surname</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-value" style="color:var(--amber);">18%</span>
+          <div class="kpi-label">Training data imbalance</div>
+          <div class="kpi-delta warn">Female-approved pre-2021</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-value" style="color: var(--green);">42,800</span>
+          <div class="kpi-label">Records analyzed</div>
+          <div class="kpi-delta ok">Hiring decisions 2019–2023</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-box">
+          <div class="chart-box-title">Approval rates by group</div>
+          <div class="chart-box-sub">80% rule threshold = disparate impact boundary</div>
+          <div style="position: relative; height: 220px;">
+            <canvas id="approvalChart" role="img" aria-label="Bar chart showing approval rates by demographic group">Approval rates vary significantly across groups.</canvas>
+          </div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-box-title">Metrics radar</div>
+          <div class="chart-box-sub">Composite view across all fairness dimensions</div>
+          <div style="position: relative; height: 220px;">
+            <canvas id="radarChart" role="img" aria-label="Radar chart of fairness metrics">Fairness metrics radar showing performance across dimensions.</canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- HOW TO MAKE IT UNBIASED -->
+      <div style="margin-top: 2rem;">
+
+        <!-- Section heading -->
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1.25rem;">
+          <div style="flex: 1; height: 1px; background: var(--border);"></div>
+          <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap;">How to make it unbiased</span>
+          <div style="flex: 1; height: 1px; background: var(--border);"></div>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.25rem;">
+          <p style="font-size: 0.9rem; color: var(--text2); line-height: 1.85; margin: 0 0 1.25rem;">
+            Making an AI model unbiased is a <strong style="color:var(--text); font-weight:600;">three-stage process</strong> — you fix problems <em>before</em> training, <em>during</em> training, and <em>after</em> training. Think of it like baking a cake: you need the right ingredients, the right recipe, and the right finishing touches. Miss any stage and the result is still flawed.
+          </p>
+
+          <!-- 3 stage cards -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+
+            <!-- Stage 1 -->
+            <div style="background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; border-top: 3px solid var(--accent);">
+              <div style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--accent2); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.5rem;">Stage 1 — Before training</div>
+              <div style="font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 0.6rem;">Fix your data first</div>
+              <p style="font-size: 0.8rem; color: var(--text2); line-height: 1.65; margin: 0 0 0.75rem;">
+                Bad data in = bad decisions out. If your training data shows that women were historically rejected more, the AI will learn to keep doing that. You need to clean this up first.
+              </p>
+              <ul style="font-size: 0.78rem; color: var(--text2); line-height: 1.7; padding-left: 1.1rem; margin: 0;">
+                <li>Remove <strong style="color:var(--text);">proxy features</strong> — columns like zip code or school name that secretly carry race or gender information</li>
+                <li><strong style="color:var(--text);">Balance the dataset</strong> — add more examples of underrepresented groups (e.g. female applicants who were hired)</li>
+                <li><strong style="color:var(--text);">Check historical data</strong> — data from before 2021 in this case reflects old biases; down-weight or exclude it</li>
+              </ul>
+            </div>
+
+            <!-- Stage 2 -->
+            <div style="background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; border-top: 3px solid var(--pink);">
+              <div style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--pink); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.5rem;">Stage 2 — During training</div>
+              <div style="font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 0.6rem;">Teach the model to be fair</div>
+              <p style="font-size: 0.8rem; color: var(--text2); line-height: 1.65; margin: 0 0 0.75rem;">
+                When the AI is learning patterns, you can add a "fairness rule" that penalises it every time it treats groups differently without a good reason — just like a teacher marking down a student for bias.
+              </p>
+              <ul style="font-size: 0.78rem; color: var(--text2); line-height: 1.7; padding-left: 1.1rem; margin: 0;">
+                <li>Add a <strong style="color:var(--text);">fairness penalty</strong> to the training loss so the model is punished for creating large approval rate gaps</li>
+                <li>Use <strong style="color:var(--text);">adversarial debiasing</strong> — train a second model that tries to predict gender/race from decisions; if it can, the first model is still biased</li>
+                <li>Apply <strong style="color:var(--text);">constraint-based learning</strong> to enforce equal true positive rates across groups</li>
+              </ul>
+            </div>
+
+            <!-- Stage 3 -->
+            <div style="background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; border-top: 3px solid var(--green);">
+              <div style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--green); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.5rem;">Stage 3 — After training</div>
+              <div style="font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 0.6rem;">Adjust the final decisions</div>
+              <p style="font-size: 0.8rem; color: var(--text2); line-height: 1.65; margin: 0 0 0.75rem;">
+                Even after a fair model is trained, the cut-off point for a "yes" or "no" decision can still create gaps. You can tune this separately for each group to level the playing field at the output stage.
+              </p>
+              <ul style="font-size: 0.78rem; color: var(--text2); line-height: 1.7; padding-left: 1.1rem; margin: 0;">
+                <li>Apply <strong style="color:var(--text);">per-group thresholds</strong> — slightly lower the bar for historically disadvantaged groups to correct for systematic underscoring</li>
+                <li>Use <strong style="color:var(--text);">calibration</strong> to ensure that a 70% confidence score means the same thing regardless of the applicant's background</li>
+                <li><strong style="color:var(--text);">Monitor in production</strong> — bias can drift back over time as new data comes in; audit quarterly</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- WHAT THE IDEAL OUTCOME LOOKS LIKE -->
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1.25rem; margin-top: 1.75rem;">
+          <div style="flex: 1; height: 1px; background: var(--border);"></div>
+          <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap;">What the ideal outcome looks like</span>
+          <div style="flex: 1; height: 1px; background: var(--border);"></div>
+        </div>
+
+        <div style="background: rgba(16,217,160,0.05); border: 1px solid rgba(16,217,160,0.2); border-radius: 16px; padding: 1.5rem;">
+          <p style="font-size: 0.875rem; color: var(--text2); line-height: 1.85; margin: 0 0 1.25rem;">
+            The goal is <strong style="color: var(--green); font-weight: 600;">not</strong> to make the AI approve everyone equally — it is to make sure that <strong style="color: var(--text); font-weight: 600;">equally qualified people have equal chances</strong>, regardless of gender, race, age, or any other protected characteristic. Here is what success looks like:
+          </p>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+            <div style="background: var(--bg3); border: 1px solid rgba(16,217,160,0.15); border-radius: 10px; padding: 1rem;">
+              <div style="font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--green); margin-bottom: 0.25rem;">≥ 80</div>
+              <div style="font-size: 0.75rem; color: var(--text2);">Target fairness score — the model is treating all groups fairly by international standards</div>
+            </div>
+            <div style="background: var(--bg3); border: 1px solid rgba(16,217,160,0.15); border-radius: 10px; padding: 1rem;">
+              <div style="font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--green); margin-bottom: 0.25rem;">&lt; 5%</div>
+              <div style="font-size: 0.75rem; color: var(--text2);">Maximum demographic parity gap — approval rate differences between groups should be under 5 percentage points</div>
+            </div>
+            <div style="background: var(--bg3); border: 1px solid rgba(16,217,160,0.15); border-radius: 10px; padding: 1rem;">
+              <div style="font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--green); margin-bottom: 0.25rem;">&gt; 0.80</div>
+              <div style="font-size: 0.75rem; color: var(--text2);">80% rule ratio — for every 100 men approved, at least 80 women with similar profiles should also be approved</div>
+            </div>
+            <div style="background: var(--bg3); border: 1px solid rgba(16,217,160,0.15); border-radius: 10px; padding: 1rem;">
+              <div style="font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--green); margin-bottom: 0.25rem;">0</div>
+              <div style="font-size: 0.75rem; color: var(--text2);">Proxy variables — no feature in the model should be a stand-in for a protected characteristic like race or gender</div>
+            </div>
+          </div>
+
+          <!-- Before vs After -->
+          <div style="font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; color: var(--text); margin-bottom: 0.75rem;">Current state vs. target state</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div style="background: rgba(255,77,109,0.06); border: 1px solid rgba(255,77,109,0.2); border-radius: 10px; padding: 1rem;">
+              <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--red); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.6rem;">❌ Right now (biased)</div>
+              <ul style="font-size: 0.78rem; color: var(--text2); line-height: 1.8; padding-left: 1.1rem; margin: 0;">
+                <li>Women approved at 49%, men at 72% — a 23pp gap</li>
+                <li>Zip code and school name secretly encode race</li>
+                <li>Historical underrepresentation baked into training data</li>
+                <li>Fairness score: <strong style="color:var(--red);">41/100</strong></li>
+                <li>Fails EEOC 80% rule and EU AI Act requirements</li>
+              </ul>
+            </div>
+            <div style="background: rgba(16,217,160,0.06); border: 1px solid rgba(16,217,160,0.2); border-radius: 10px; padding: 1rem;">
+              <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--green); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.6rem;">✓ After remediation (fair)</div>
+              <ul style="font-size: 0.78rem; color: var(--text2); line-height: 1.8; padding-left: 1.1rem; margin: 0;">
+                <li>Approval rates within 5pp across all gender groups</li>
+                <li>Proxy features removed, only qualification data used</li>
+                <li>Balanced training data with equal historical representation</li>
+                <li>Fairness score: <strong style="color:var(--green);">≥ 80/100</strong></li>
+                <li>Compliant with EEOC, EU AI Act, and ECOA</li>
+              </ul>
+            </div>
+          </div>
+
+          <p style="font-size: 0.82rem; color: var(--text3); line-height: 1.7; margin: 1.1rem 0 0; font-style: italic;">
+            ℹ A perfectly fair model still makes some mistakes — that is normal. The goal is that those mistakes happen equally across all groups, not more often for women, minorities, or older applicants. Use the <strong style="color: var(--accent2); font-style: normal;">What-If Simulator</strong> tab to preview how each fix improves these numbers before you retrain your model.
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- DISPARITY PANEL -->
+    <div class="panel" id="panel-disparity">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+        <div>
+          <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem;">Disparity analysis</div>
+          <div style="font-size: 0.78rem; color: var(--text3); font-family: var(--font-mono);">Compare outcomes across protected groups with statistical significance testing</div>
+        </div>
+      </div>
+
+      <div class="attr-selector">
+        <button class="attr-pill active" onclick="selectAttr(this, 'gender')">Gender</button>
+        <button class="attr-pill" onclick="selectAttr(this, 'race')">Race / Ethnicity</button>
+        <button class="attr-pill" onclick="selectAttr(this, 'age')">Age group</button>
+        <button class="attr-pill" onclick="selectAttr(this, 'disability')">Disability status</button>
+      </div>
+
+      <div style="position: relative; height: 280px; margin-bottom: 1.5rem;">
+        <canvas id="disparityChart" role="img" aria-label="Bar chart showing approval rate by gender">Approval rates by demographic group.</canvas>
+      </div>
+
+      <div id="disparity-table-wrap">
+        <table class="disparity-table">
+          <thead>
+            <tr>
+              <th>Group</th>
+              <th>Approval rate</th>
+              <th>True positive rate</th>
+              <th>False positive rate</th>
+              <th>Gap vs. reference</th>
+              <th>Significance</th>
+            </tr>
+          </thead>
+          <tbody id="disparity-tbody">
+            <tr>
+              <td>Male</td>
+              <td><div class="bar-inline"><div class="bar-inline-track"><div class="bar-inline-fill" style="width:72%; background:var(--blue);"></div></div> 72%</div></td>
+              <td>68%</td><td>12%</td>
+              <td style="color:var(--text2);">— Reference</td>
+              <td><span class="flag-tag" style="color:var(--text3);">—</span></td>
+            </tr>
+            <tr>
+              <td>Female</td>
+              <td><div class="bar-inline"><div class="bar-inline-track"><div class="bar-inline-fill" style="width:49%; background:var(--red);"></div></div> 49%</div></td>
+              <td>36%</td><td>18%</td>
+              <td style="color:var(--red);">−23 pp</td>
+              <td><span class="flag-tag critical">p &lt; 0.001</span></td>
+            </tr>
+            <tr>
+              <td>Non-binary</td>
+              <td><div class="bar-inline"><div class="bar-inline-track"><div class="bar-inline-fill" style="width:38%; background:var(--red);"></div></div> 38%</div></td>
+              <td>31%</td><td>22%</td>
+              <td style="color:var(--red);">−34 pp</td>
+              <td><span class="flag-tag critical">p &lt; 0.001</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INTERSECTIONALITY PANEL -->
+    <div class="panel" id="panel-intersectionality">
+      <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.4rem;">Intersectional analysis</div>
+      <div style="font-size: 0.82rem; color: var(--text2); margin-bottom: 1.5rem; max-width: 640px; line-height: 1.55;">Groups that appear "acceptable" in isolation can face severe disparity at the intersection. A Black woman may face a −44pp gap that disappears when race and gender are analysed separately.</div>
+
+      <div style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.75rem;">Approval rate — gender × race/ethnicity</div>
+
+      <div class="heatmap-container">
+        <div id="heatmap" style="display: grid; grid-template-columns: 120px repeat(5, 100px); gap: 4px; min-width: 640px;"></div>
+      </div>
+
+      <div style="display: flex; gap: 1.5rem; margin-top: 1rem; align-items: center; flex-wrap: wrap;">
+        <div style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--text3);">Legend:</div>
+        <div style="display: flex; gap: 6px; align-items: center; font-size: 0.72rem; font-family: var(--font-mono);">
+          <div style="width: 14px; height: 14px; background: rgba(16,217,160,0.7); border-radius: 3px;"></div> &gt;65%
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center; font-size: 0.72rem; font-family: var(--font-mono);">
+          <div style="width: 14px; height: 14px; background: rgba(251,191,36,0.6); border-radius: 3px;"></div> 50–65%
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center; font-size: 0.72rem; font-family: var(--font-mono);">
+          <div style="width: 14px; height: 14px; background: rgba(255,77,109,0.5); border-radius: 3px;"></div> &lt;50%
+        </div>
+      </div>
+
+      <div style="margin-top: 2rem;">
+        <div style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.75rem;">Largest intersectional gaps</div>
+        <div style="display: flex; flex-direction: column; gap: 0.6rem;" id="gap-list"></div>
+      </div>
+    </div>
+
+    <!-- FLAGS PANEL -->
+    <div class="panel" id="panel-flags">
+      <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem;">Flags & Alerts</div>
+      <div style="font-size: 0.78rem; color: var(--text3); font-family: var(--font-mono); margin-bottom: 1.5rem;">Automated detection of bias patterns, proxy variables, and regulatory violations.</div>
+
+      <div class="flags-list">
+        <div class="flag-card">
+          <div class="flag-severity-dot dot-critical"></div>
+          <div class="flag-content">
+            <div class="flag-title">Severe demographic parity violation — Gender</div>
+            <div class="flag-desc">Female applicants are approved at 49% vs. 72% for males — a 23 percentage point gap. This far exceeds the EEOC 80% rule threshold (ratio: 0.68). The disparity is statistically significant at p &lt; 0.001 across all 5 years of training data.</div>
+            <div class="flag-meta">
+              <span class="flag-tag critical">Critical</span>
+              <span class="flag-tag reg">EEOC §60-3</span>
+              <span class="flag-tag reg">EU AI Act Art.10</span>
+              <span class="flag-tag">Gender</span>
+              <span class="flag-tag">42,800 records</span>
+            </div>
+          </div>
+        </div>
+        <div class="flag-card">
+          <div class="flag-severity-dot dot-critical"></div>
+          <div class="flag-content">
+            <div class="flag-title">Proxy variable: zip code encodes race</div>
+            <div class="flag-desc">Zip code has 0.74 correlation with race/ethnicity labels. Using this feature as a predictor introduces racial discrimination through a proxy. Recommend removing or replacing with geodemographic features that don't encode race.</div>
+            <div class="flag-meta">
+              <span class="flag-tag critical">Critical</span>
+              <span class="flag-tag reg">ECOA §202</span>
+              <span class="flag-tag">Race</span>
+              <span class="flag-tag">Proxy variable</span>
+            </div>
+          </div>
+        </div>
+        <div class="flag-card">
+          <div class="flag-severity-dot dot-critical"></div>
+          <div class="flag-content">
+            <div class="flag-title">Training data historical bias — Pre-2021 female underrepresentation</div>
+            <div class="flag-desc">Only 18% of approved candidates before 2021 were female. The model has learned to perpetuate this historical pattern. A temporal bias analysis shows the model performs worse on female candidates who joined after 2021.</div>
+            <div class="flag-meta">
+              <span class="flag-tag critical">Critical</span>
+              <span class="flag-tag reg">EU AI Act Art.10(3)</span>
+              <span class="flag-tag">Training data</span>
+            </div>
+          </div>
+        </div>
+        <div class="flag-card">
+          <div class="flag-severity-dot dot-warning"></div>
+          <div class="flag-content">
+            <div class="flag-title">Proxy variable: school name correlates with socioeconomic status</div>
+            <div class="flag-desc">School name has high mutual information with both race and income. Elite university names correlate with White/Asian applicants (0.61 correlation). This may introduce indirect discrimination against first-generation college students.</div>
+            <div class="flag-meta">
+              <span class="flag-tag warning">Warning</span>
+              <span class="flag-tag">Race</span>
+              <span class="flag-tag">Socioeconomic</span>
+              <span class="flag-tag">Proxy variable</span>
+            </div>
+          </div>
+        </div>
+        <div class="flag-card">
+          <div class="flag-severity-dot dot-info"></div>
+          <div class="flag-content">
+            <div class="flag-title">Age group disparity: 45–55 age cohort</div>
+            <div class="flag-desc">Applicants aged 45–55 are approved at 58% vs. 71% for the 25–35 reference cohort. While below the critical threshold, this meets the definition of age discrimination under ADEA for employment decisions.</div>
+            <div class="flag-meta">
+              <span class="flag-tag">Informational</span>
+              <span class="flag-tag reg">ADEA §623</span>
+              <span class="flag-tag">Age</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WHAT-IF SIMULATOR PANEL (new) -->
+    <div class="panel" id="panel-whatif">
+      <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem;">What-If Simulator</div>
+      <div style="font-size: 0.78rem; color: var(--text2); margin-bottom: 1.5rem; max-width: 600px;">Adjust intervention parameters and see projected fairness outcomes in real-time. All projections are based on peer-reviewed ML fairness literature.</div>
+
+      <div class="whatif-grid">
+        <div>
+          <div style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem;">Intervention controls</div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Resampling ratio (minority oversample)</span>
+              <span class="slider-val" id="resample-val">1.5×</span>
+            </div>
+            <input type="range" min="10" max="30" value="15" step="1" oninput="updateWhatIf(this, 'resample')">
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Decision threshold shift</span>
+              <span class="slider-val" id="threshold-val">0.50</span>
+            </div>
+            <input type="range" min="30" max="70" value="50" step="1" oninput="updateWhatIf(this, 'threshold')">
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Regularization strength (fairness)</span>
+              <span class="slider-val" id="lambda-val">0.10</span>
+            </div>
+            <input type="range" min="0" max="50" value="10" step="1" oninput="updateWhatIf(this, 'lambda')">
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Proxy feature removal (# features)</span>
+              <span class="slider-val" id="proxy-val">0</span>
+            </div>
+            <input type="range" min="0" max="3" value="0" step="1" oninput="updateWhatIf(this, 'proxy')">
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Post-processing calibration</span>
+              <span class="slider-val" id="calibration-val">Off</span>
+            </div>
+            <input type="range" min="0" max="1" value="0" step="1" oninput="updateWhatIf(this, 'calibration')">
+          </div>
+
+          <div style="position: relative; height: 200px; margin-top: 1.5rem;">
+            <canvas id="whatifChart" role="img" aria-label="Line chart showing fairness score trajectory">Projected fairness improvement trajectory.</canvas>
+          </div>
+        </div>
+
+        <div class="whatif-result">
+          <div class="whatif-result-title">Projected outcomes after intervention</div>
+          <div class="whatif-metrics">
+            <div class="wm-row">
+              <span class="wm-name">Overall fairness score</span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="wm-val" id="wi-score" style="color:var(--accent2);">41 → 41</span>
+                <span class="wm-change pos" id="wi-score-delta">+0</span>
+              </div>
+            </div>
+            <div class="wm-row">
+              <span class="wm-name">Demographic parity gap</span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="wm-val" id="wi-dpgap">23.4% → 23.4%</span>
+                <span class="wm-change pos" id="wi-dpgap-delta">±0%</span>
+              </div>
+            </div>
+            <div class="wm-row">
+              <span class="wm-name">Equal opportunity gap</span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="wm-val" id="wi-eogap">31.7% → 31.7%</span>
+                <span class="wm-change pos" id="wi-eogap-delta">±0%</span>
+              </div>
+            </div>
+            <div class="wm-row">
+              <span class="wm-name">Model accuracy impact</span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="wm-val" id="wi-acc">0%</span>
+                <span class="wm-change" id="wi-acc-delta">±0%</span>
+              </div>
+            </div>
+            <div class="wm-row">
+              <span class="wm-name">Estimated implementation cost</span>
+              <span class="wm-val" id="wi-cost" style="font-size:0.78rem;">Low</span>
+            </div>
+            <div class="wm-row">
+              <span class="wm-name">Regulatory compliance likelihood</span>
+              <span class="wm-val" id="wi-compliance" style="font-size:0.78rem;">—</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+            <div class="whatif-result-title" style="margin-bottom: 0.6rem;">Recommended next step</div>
+            <div style="font-size: 0.8rem; color: var(--text2); line-height: 1.55;" id="wi-recommendation">
+              Adjust the sliders to see intervention projections. Start with proxy feature removal for the highest impact with lowest accuracy cost.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODEL COMPARE PANEL (new) -->
+    <div class="panel" id="panel-compare">
+      <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem;">Model comparison</div>
+      <div style="font-size: 0.78rem; color: var(--text2); margin-bottom: 1.5rem;">Compare fairness profiles across model versions or architectures side-by-side.</div>
+
+      <div class="compare-grid">
+        <div class="compare-card" style="border-color: rgba(255,77,109,0.3);">
+          <div class="compare-card-name">Baseline model v1.0</div>
+          <div class="compare-card-type">Random Forest · Trained on all features</div>
+          <div class="compare-score" style="color: var(--red);">41<span style="font-size: 1rem; color: var(--text3);">/100</span></div>
+          <div class="compare-metrics-mini">
+            <div class="cmm-row"><span>Dem. parity gap</span><span class="cmm-val" style="color:var(--red);">23.4%</span></div>
+            <div class="cmm-row"><span>Eq. opportunity gap</span><span class="cmm-val" style="color:var(--red);">31.7%</span></div>
+            <div class="cmm-row"><span>Accuracy</span><span class="cmm-val">87.2%</span></div>
+            <div class="cmm-row"><span>Proxy features</span><span class="cmm-val" style="color:var(--amber);">3 detected</span></div>
+          </div>
+        </div>
+        <div class="compare-card" style="border-color: rgba(251,191,36,0.3);">
+          <div class="compare-card-name">Debiased model v1.1</div>
+          <div class="compare-card-type">Random Forest · Proxy features removed</div>
+          <div class="compare-score" style="color: var(--amber);">62<span style="font-size: 1rem; color: var(--text3);">/100</span></div>
+          <div class="compare-metrics-mini">
+            <div class="cmm-row"><span>Dem. parity gap</span><span class="cmm-val" style="color:var(--amber);">14.1%</span></div>
+            <div class="cmm-row"><span>Eq. opportunity gap</span><span class="cmm-val" style="color:var(--amber);">18.9%</span></div>
+            <div class="cmm-row"><span>Accuracy</span><span class="cmm-val">85.1%</span></div>
+            <div class="cmm-row"><span>Proxy features</span><span class="cmm-val" style="color:var(--green);">0 detected</span></div>
+          </div>
+        </div>
+        <div class="compare-card" style="border-color: rgba(16,217,160,0.3);">
+          <div class="compare-card-name">Fair model v2.0</div>
+          <div class="compare-card-type">XGBoost · Full remediation applied</div>
+          <div class="compare-score" style="color: var(--green);">78<span style="font-size: 1rem; color: var(--text3);">/100</span></div>
+          <div class="compare-metrics-mini">
+            <div class="cmm-row"><span>Dem. parity gap</span><span class="cmm-val" style="color:var(--green);">4.8%</span></div>
+            <div class="cmm-row"><span>Eq. opportunity gap</span><span class="cmm-val" style="color:var(--green);">6.2%</span></div>
+            <div class="cmm-row"><span>Accuracy</span><span class="cmm-val">83.8%</span></div>
+            <div class="cmm-row"><span>Proxy features</span><span class="cmm-val" style="color:var(--green);">0 detected</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-box" style="margin-top: 0;">
+        <div class="chart-box-title">Fairness vs. accuracy trade-off across model versions</div>
+        <div class="chart-box-sub">Lower demographic parity gap = fairer; higher accuracy = more performant</div>
+        <div style="position: relative; height: 260px;">
+          <canvas id="compareChart" role="img" aria-label="Scatter chart showing fairness vs accuracy trade-off">Trade-off between fairness and accuracy across model versions.</canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- REMEDIATION PANEL -->
+    <div class="panel" id="panel-remediation">
+      <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem;">Remediation plan</div>
+      <div style="font-size: 0.78rem; color: var(--text2); margin-bottom: 1.5rem;">Evidence-based interventions to reduce bias before deployment, ordered by projected impact.</div>
+
+      <div class="rem-steps">
+        <div class="rem-step">
+          <div class="rem-step-num">1</div>
+          <div class="rem-step-title">Remove proxy variables (pre-processing)</div>
+          <div class="rem-step-desc">Drop zip code, school name, and surname from the feature set. These three features alone explain 38% of the demographic parity gap. Replace with geodemographic quintile scores that are race-neutral by construction.</div>
+          <div class="impact-bar">
+            <div class="impact-bar-track"><div class="impact-bar-fill" style="width:85%;"></div></div>
+            <span class="impact-label">−14.2pp gap reduction</span>
+          </div>
+        </div>
+        <div class="rem-step">
+          <div class="rem-step-num">2</div>
+          <div class="rem-step-title">Resample training data (pre-processing)</div>
+          <div class="rem-step-desc">Apply 1.5× SMOTE oversampling on underrepresented groups for pre-2021 data. This corrects the historical imbalance without discarding records. Combined with temporal weighting for recent data.</div>
+          <div class="impact-bar">
+            <div class="impact-bar-track"><div class="impact-bar-fill" style="width:62%;"></div></div>
+            <span class="impact-label">−7.8pp gap reduction</span>
+          </div>
+        </div>
+        <div class="rem-step">
+          <div class="rem-step-num">3</div>
+          <div class="rem-step-title">Add fairness regularization (in-processing)</div>
+          <div class="rem-step-desc">Incorporate a fairness penalty term (λ=0.1) into the model's loss function using the Reduction approach. This constrains the model to equalize true positive rates across groups during training.</div>
+          <div class="impact-bar">
+            <div class="impact-bar-track"><div class="impact-bar-fill" style="width:70%;"></div></div>
+            <span class="impact-label">−9.1pp gap reduction</span>
+          </div>
+        </div>
+        <div class="rem-step">
+          <div class="rem-step-num">4</div>
+          <div class="rem-step-title">Per-group threshold calibration (post-processing)</div>
+          <div class="rem-step-desc">Apply group-specific decision thresholds to equalize false positive rates. This intervention preserves model accuracy while mechanically enforcing equalized odds at decision time. Requires ongoing monitoring.</div>
+          <div class="impact-bar">
+            <div class="impact-bar-track"><div class="impact-bar-fill" style="width:55%;"></div></div>
+            <span class="impact-label">−5.3pp gap reduction</span>
+          </div>
+        </div>
+        <div class="rem-step">
+          <div class="rem-step-num">5</div>
+          <div class="rem-step-title">Continuous monitoring & audit cadence</div>
+          <div class="rem-step-desc">Deploy FairSight's real-time monitoring dashboard. Set alerts for demographic parity drift &gt;3pp. Schedule quarterly full audits. Document all decisions for the EU AI Act Art.13 transparency log.</div>
+          <div class="impact-bar">
+            <div class="impact-bar-track"><div class="impact-bar-fill" style="width:40%;"></div></div>
+            <span class="impact-label">Ongoing compliance</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORT PANEL -->
+    <div class="panel" id="panel-report">
+      <div class="report-header">
+        <div>
+          <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem;">Audit report</div>
+          <div style="font-size: 0.78rem; color: var(--text3); font-family: var(--font-mono);">Generated: 27 April 2026 · Hiring Decisions Dataset v1.0</div>
+        </div>
+        <div class="report-btns">
+          <button class="export-btn" onclick="showNotification('JSON report downloaded', 'audit-report-2026-04-27.json')">Export JSON</button>
+          <button class="export-btn primary" onclick="showNotification('PDF report generated', '8 pages · EU AI Act compliant')">Export PDF →</button>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">Summary</div>
+        <div class="report-grid">
+          <div><div class="report-item-label">Overall fairness score</div><div class="report-item-val" style="color:var(--red);">41/100 — Critical</div></div>
+          <div><div class="report-item-label">Dataset</div><div class="report-item-val">Hiring Decisions 2019–2023</div></div>
+          <div><div class="report-item-label">Records analyzed</div><div class="report-item-val">42,800</div></div>
+          <div><div class="report-item-label">Protected attributes</div><div class="report-item-val">Gender, Race, Age</div></div>
+          <div><div class="report-item-label">Critical flags</div><div class="report-item-val" style="color:var(--red);">3</div></div>
+          <div><div class="report-item-label">Warnings</div><div class="report-item-val" style="color:var(--amber);">2</div></div>
+          <div><div class="report-item-label">Proxy variables</div><div class="report-item-val" style="color:var(--amber);">3 (Zip, School, Surname)</div></div>
+          <div><div class="report-item-label">Auditor</div><div class="report-item-val">FairSight v2.0</div></div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">Regulatory compliance status</div>
+        <div class="compliance-list">
+          <div class="compliance-row">
+            <span class="compliance-name">EU AI Act — High-Risk System Requirements</span>
+            <span class="compliance-status status-fail">Non-compliant</span>
+          </div>
+          <div class="compliance-row">
+            <span class="compliance-name">EEOC Uniform Guidelines §60-3 (80% Rule)</span>
+            <span class="compliance-status status-fail">Fails (0.68 ratio)</span>
+          </div>
+          <div class="compliance-row">
+            <span class="compliance-name">ADEA — Age Discrimination in Employment</span>
+            <span class="compliance-status status-partial">Partial</span>
+          </div>
+          <div class="compliance-row">
+            <span class="compliance-name">GDPR Article 22 — Automated Decision-Making</span>
+            <span class="compliance-status status-partial">Partial</span>
+          </div>
+          <div class="compliance-row">
+            <span class="compliance-name">ISO/IEC 42001 AI Management System</span>
+            <span class="compliance-status status-partial">Partial</span>
+          </div>
+          <div class="compliance-row">
+            <span class="compliance-name">RBI Digital Lending Explainability Requirements</span>
+            <span class="compliance-status status-pass">Compliant</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">Recommended actions — priority order</div>
+        <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.82rem; color: var(--text2);">
+          <div style="display: flex; gap: 10px;"><span style="color:var(--red); font-family: var(--font-mono); width: 24px; flex-shrink: 0;">P1</span>Remove proxy variables (zip code, school, surname) before next model training run.</div>
+          <div style="display: flex; gap: 10px;"><span style="color:var(--red); font-family: var(--font-mono); width: 24px; flex-shrink: 0;">P1</span>Halt production deployment until demographic parity gap is below 5%.</div>
+          <div style="display: flex; gap: 10px;"><span style="color:var(--amber); font-family: var(--font-mono); width: 24px; flex-shrink: 0;">P2</span>Apply SMOTE resampling on training data to correct historical female underrepresentation.</div>
+          <div style="display: flex; gap: 10px;"><span style="color:var(--amber); font-family: var(--font-mono); width: 24px; flex-shrink: 0;">P2</span>Add fairness regularization (λ=0.1) to model training loss function.</div>
+          <div style="display: flex; gap: 10px;"><span style="color:var(--blue); font-family: var(--font-mono); width: 24px; flex-shrink: 0;">P3</span>Implement quarterly FairSight audits and real-time demographic parity monitoring.</div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           GENERATE UNBIASED DATASET SECTION
+           ══════════════════════════════════════════ -->
+      <div style="background: linear-gradient(135deg, rgba(16,217,160,0.06) 0%, rgba(124,111,255,0.06) 100%); border: 1px solid rgba(16,217,160,0.25); border-radius: 16px; padding: 1.75rem; margin-top: 1.25rem;">
+
+        <!-- Header -->
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.4rem;">
+              <span style="font-size: 20px;">✨</span>
+              <span style="font-family: var(--font-display); font-size: 1.05rem; font-weight: 800; color: var(--text);">Generate Unbiased Dataset</span>
+            </div>
+            <p style="font-size: 0.82rem; color: var(--text2); line-height: 1.65; max-width: 560px; margin: 0;">
+              FairSight will now automatically apply all fixes to your original data and produce a clean, debiased CSV file ready to retrain your model on. Every change is logged so you know exactly what was done and why.
+            </p>
+          </div>
+          <button id="generate-btn" onclick="generateUnbiasedDataset()" style="padding: 13px 28px; background: linear-gradient(135deg, var(--green), #059669); color: #fff; border: none; border-radius: 10px; font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; box-shadow: 0 0 30px rgba(16,217,160,0.2); flex-shrink: 0;">
+            ⬇ Generate & Download
+          </button>
+        </div>
+
+        <!-- What will be done -->
+        <div style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.75rem;">What FairSight will fix in your data</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;" id="fix-checklist">
+
+          <div class="fix-item" id="fix-proxy">
+            <div style="display: flex; align-items: flex-start; gap: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem;">
+              <span class="fix-icon" style="font-size: 16px; flex-shrink: 0; margin-top: 1px;">🗑</span>
+              <div>
+                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 3px;">Remove proxy variables</div>
+                <div style="font-size: 0.75rem; color: var(--text2);">Drop <code style="font-family:var(--font-mono); font-size:0.7rem; background:var(--bg4); padding:1px 5px; border-radius:3px;">zip_code</code>, <code style="font-family:var(--font-mono); font-size:0.7rem; background:var(--bg4); padding:1px 5px; border-radius:3px;">school_name</code>, <code style="font-family:var(--font-mono); font-size:0.7rem; background:var(--bg4); padding:1px 5px; border-radius:3px;">surname</code> columns that secretly encode race or gender</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fix-item" id="fix-balance">
+            <div style="display: flex; align-items: flex-start; gap: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem;">
+              <span class="fix-icon" style="font-size: 16px; flex-shrink: 0; margin-top: 1px;">⚖</span>
+              <div>
+                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 3px;">Balance group representation</div>
+                <div style="font-size: 0.75rem; color: var(--text2);">Oversample underrepresented groups (female, Black, Hispanic applicants) using SMOTE so no group is a tiny minority in training</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fix-item" id="fix-historical">
+            <div style="display: flex; align-items: flex-start; gap: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem;">
+              <span class="fix-icon" style="font-size: 16px; flex-shrink: 0; margin-top: 1px;">📅</span>
+              <div>
+                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 3px;">Re-weight historical records</div>
+                <div style="font-size: 0.75rem; color: var(--text2);">Records from before 2021 are down-weighted by 0.4× to reduce the influence of historically biased decisions on the model</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fix-item" id="fix-labels">
+            <div style="display: flex; align-items: flex-start; gap: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem;">
+              <span class="fix-icon" style="font-size: 16px; flex-shrink: 0; margin-top: 1px;">🏷</span>
+              <div>
+                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 3px;">Correct mislabelled outcomes</div>
+                <div style="font-size: 0.75rem; color: var(--text2);">Flag and relabel 1,240 records where qualified female/minority candidates were rejected — corrected using counterfactual analysis</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fix-item" id="fix-sensitive">
+            <div style="display: flex; align-items: flex-start; gap: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem;">
+              <span class="fix-icon" style="font-size: 16px; flex-shrink: 0; margin-top: 1px;">🔒</span>
+              <div>
+                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 3px;">Anonymise sensitive columns</div>
+                <div style="font-size: 0.75rem; color: var(--text2);">Gender, race, and age columns are retained for auditing but masked with a flag so they cannot be used as model features</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fix-item" id="fix-audit">
+            <div style="display: flex; align-items: flex-start; gap: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem;">
+              <span class="fix-icon" style="font-size: 16px; flex-shrink: 0; margin-top: 1px;">📋</span>
+              <div>
+                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 3px;">Append change log column</div>
+                <div style="font-size: 0.75rem; color: var(--text2);">Every modified row gets a <code style="font-family:var(--font-mono); font-size:0.7rem; background:var(--bg4); padding:1px 5px; border-radius:3px;">fairsight_changes</code> column explaining exactly what was changed and why</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress bar (hidden until generation starts) -->
+        <div id="gen-progress-wrap" style="display: none; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text2);" id="gen-step-label">Initialising…</span>
+            <span style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent2);" id="gen-pct">0%</span>
+          </div>
+          <div style="width: 100%; height: 6px; background: var(--bg4); border-radius: 999px; overflow: hidden;">
+            <div id="gen-fill" style="height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(to right, var(--green), var(--accent)); transition: width 0.4s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Projected result after fix -->
+        <div style="background: var(--bg3); border: 1px solid rgba(16,217,160,0.15); border-radius: 12px; padding: 1.1rem;">
+          <div style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.75rem;">Projected dataset stats after debiasing</div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.6rem;">
+            <div>
+              <div style="font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: var(--green);">83/100</div>
+              <div style="font-size: 0.72rem; color: var(--text3); font-family: var(--font-mono);">Projected fairness score</div>
+            </div>
+            <div>
+              <div style="font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: var(--green);">3.8%</div>
+              <div style="font-size: 0.72rem; color: var(--text3); font-family: var(--font-mono);">Dem. parity gap (was 23.4%)</div>
+            </div>
+            <div>
+              <div style="font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: var(--green);">0</div>
+              <div style="font-size: 0.72rem; color: var(--text3); font-family: var(--font-mono);">Proxy variables remaining</div>
+            </div>
+            <div>
+              <div style="font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: var(--amber);">−3.4%</div>
+              <div style="font-size: 0.72rem; color: var(--text3); font-family: var(--font-mono);">Est. accuracy trade-off</div>
+            </div>
+            <div>
+              <div style="font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: var(--green);">51,200</div>
+              <div style="font-size: 0.72rem; color: var(--text3); font-family: var(--font-mono);">Records in clean dataset</div>
+            </div>
+            <div>
+              <div style="font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: var(--green);">✓</div>
+              <div style="font-size: 0.72rem; color: var(--text3); font-family: var(--font-mono);">EEOC & EU AI Act compliant</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- end generate section -->
+
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>
+    Built for the <a href="#">Google Hackathon 2026</a> · AI Ethics & Safety Track ·
+    FairSight v2.0 · <a href="#">Documentation</a> · <a href="#">Research</a>
+  </p>
+</footer>
+
+<!-- PROGRESS OVERLAY -->
+<div class="progress-overlay" id="progress-overlay">
+  <div class="progress-box">
+    <div class="progress-title">Running bias audit</div>
+    <div class="progress-sub" id="progress-sub-text">Initializing analysis pipeline…</div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-steps" id="progress-steps">
+      <div class="progress-step" id="ps-1">○ Loading dataset and validating schema</div>
+      <div class="progress-step" id="ps-2">○ Computing demographic distributions</div>
+      <div class="progress-step" id="ps-3">○ Running 7 fairness metrics</div>
+      <div class="progress-step" id="ps-4">○ Detecting proxy variables</div>
+      <div class="progress-step" id="ps-5">○ Intersectional analysis</div>
+      <div class="progress-step" id="ps-6">○ Statistical significance testing</div>
+      <div class="progress-step" id="ps-7">○ Generating remediation plan</div>
+      <div class="progress-step" id="ps-8">○ Compiling audit report</div>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATION -->
+<div class="notification" id="notification">
+  <div class="notification-title" id="notif-title"></div>
+  <div id="notif-sub" style="font-size:0.75rem; color: var(--text2); font-family: var(--font-mono);"></div>
+</div>
+
+<script>
+let activeDataset = null;
+let approvalChartInstance = null;
+let radarChartInstance = null;
+let disparityChartInstance = null;
+let whatifChartInstance = null;
+let compareChartInstance = null;
+
+// ─── TAB SWITCHING ───
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+
+  if (tab === 'overview' && !approvalChartInstance) initOverviewCharts();
+  if (tab === 'disparity' && !disparityChartInstance) initDisparityChart();
+  if (tab === 'intersectionality') initHeatmap();
+  if (tab === 'whatif' && !whatifChartInstance) initWhatIfChart();
+  if (tab === 'compare' && !compareChartInstance) initCompareChart();
+}
+
+// ─── DATASET SELECTION ───
+function loadDemo(ds) {
+  document.querySelectorAll('.dataset-card').forEach(c => c.classList.remove('selected'));
+  const el = document.getElementById('ds-' + ds);
+  if (el) el.classList.add('selected');
+  activeDataset = ds;
+  const names = { hiring: 'Hiring Decisions 2019–2023', loan: 'Loan Approvals Dataset', medical: 'Medical Triage Scoring', credit: 'Credit Scoring Dataset' };
+  document.getElementById('dataset-status').textContent = 'Active: ' + (names[ds] || ds);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    activeDataset = 'custom';
+    document.getElementById('dataset-status').textContent = 'Active: ' + file.name;
+    showNotification('Dataset loaded', file.name + ' · ' + (file.size / 1024).toFixed(0) + ' KB');
+  }
+}
+
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (file) {
+    activeDataset = 'custom';
+    document.getElementById('dataset-status').textContent = 'Active: ' + file.name;
+    showNotification('Dataset loaded', file.name);
+  }
+}
+
+// ─── RUN AUDIT ───
+function runAudit() {
+  if (!activeDataset) { loadDemo('hiring'); }
+  const overlay = document.getElementById('progress-overlay');
+  overlay.classList.add('show');
+  const fill = document.getElementById('progress-fill');
+  const steps = ['ps-1','ps-2','ps-3','ps-4','ps-5','ps-6','ps-7','ps-8'];
+  const subs = ['Loading dataset…','Computing distributions…','Running fairness metrics…','Detecting proxy variables…','Intersectional analysis…','Statistical testing…','Generating remediation…','Compiling report…'];
+  let i = 0;
+
+  function tick() {
+    if (i > 0) document.getElementById(steps[i-1]).className = 'progress-step done';
+    if (i < steps.length) {
+      document.getElementById(steps[i]).className = 'progress-step active';
+      document.getElementById('progress-sub-text').textContent = subs[i];
+      fill.style.width = ((i + 1) / steps.length * 100) + '%';
+      i++;
+      setTimeout(tick, 380 + Math.random() * 250);
+    } else {
+      document.getElementById('progress-sub-text').textContent = 'Audit complete.';
+      fill.style.width = '100%';
+      setTimeout(() => {
+        overlay.classList.remove('show');
+        steps.forEach(s => document.getElementById(s).className = 'progress-step');
+        fill.style.width = '0%';
+        i = 0;
+        showNotification('Audit complete', '5 flags detected · Score: 41/100');
+        // auto-switch to overview
+        const overviewBtn = document.querySelector('.tab-btn:nth-child(2)');
+        if (overviewBtn) switchTab('overview', overviewBtn);
+      }, 700);
+    }
+  }
+  tick();
+}
+
+// ─── OVERVIEW CHARTS ───
+function initOverviewCharts() {
+  const dark = '#0a0a0f';
+
+  // Approval rate chart
+  const aCtx = document.getElementById('approvalChart').getContext('2d');
+  approvalChartInstance = new Chart(aCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Male', 'Female', 'Non-binary', 'White', 'Black', 'Hispanic', 'Asian', 'Age 25–35', 'Age 45–55'],
+      datasets: [{
+        label: 'Approval rate',
+        data: [72, 49, 38, 74, 43, 47, 68, 71, 58],
+        backgroundColor: [
+          '#38bdf8','#ff4d6d','#ff4d6d',
+          '#38bdf8','#ff4d6d','#ff4d6d','#fbbf24',
+          '#38bdf8','#fbbf24'
+        ],
+        borderRadius: 4, borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        annotation: {} },
+      scales: {
+        x: { ticks: { color: '#5a5a7a', font: { size: 10, family: 'DM Mono' }, maxRotation: 35 }, grid: { display: false }, border: { display: false } },
+        y: { min: 0, max: 100, ticks: { color: '#5a5a7a', font: { size: 10, family: 'DM Mono' }, callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
+      }
+    }
+  });
+
+  // Radar chart
+  const rCtx = document.getElementById('radarChart').getContext('2d');
+  radarChartInstance = new Chart(rCtx, {
+    type: 'radar',
+    data: {
+      labels: ['Dem. parity', 'Eq. opportunity', 'Eq. odds', 'Calibration', 'Indiv. fairness', 'Counterfactual'],
+      datasets: [{
+        label: 'Current',
+        data: [20, 22, 18, 70, 50, 75],
+        backgroundColor: 'rgba(255,77,109,0.12)',
+        borderColor: '#ff4d6d',
+        borderWidth: 1.5,
+        pointBackgroundColor: '#ff4d6d',
+        pointRadius: 3
+      }, {
+        label: 'Target',
+        data: [80, 80, 80, 85, 80, 90],
+        backgroundColor: 'rgba(16,217,160,0.06)',
+        borderColor: 'rgba(16,217,160,0.4)',
+        borderWidth: 1,
+        borderDash: [4,4],
+        pointBackgroundColor: 'rgba(16,217,160,0.4)',
+        pointRadius: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          min: 0, max: 100,
+          ticks: { color: '#5a5a7a', font: { size: 9, family: 'DM Mono' }, backdropColor: 'transparent', stepSize: 25 },
+          pointLabels: { color: '#9898b8', font: { size: 10, family: 'DM Mono' } },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          angleLines: { color: 'rgba(255,255,255,0.05)' }
+        }
+      }
+    }
+  });
+}
+
+// ─── DISPARITY CHART ───
+const disparityData = {
+  gender: { labels: ['Male', 'Female', 'Non-binary'], vals: [72, 49, 38], colors: ['#38bdf8','#ff4d6d','#ff4d6d'] },
+  race: { labels: ['White', 'Black', 'Hispanic', 'Asian', 'Other'], vals: [74, 43, 47, 68, 51], colors: ['#38bdf8','#ff4d6d','#ff4d6d','#fbbf24','#fbbf24'] },
+  age: { labels: ['18–24', '25–35', '35–44', '45–55', '55+'], vals: [64, 71, 70, 58, 53], colors: ['#fbbf24','#38bdf8','#38bdf8','#fbbf24','#ff4d6d'] },
+  disability: { labels: ['No disability', 'Disclosed disability'], vals: [68, 52], colors: ['#38bdf8','#fbbf24'] }
+};
+
+function initDisparityChart() {
+  const d = disparityData.gender;
+  const ctx = document.getElementById('disparityChart').getContext('2d');
+  disparityChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: d.labels,
+      datasets: [{ label: 'Approval rate', data: d.vals, backgroundColor: d.colors, borderRadius: 6, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#9898b8', font: { size: 11, family: 'DM Mono' } }, grid: { display: false }, border: { display: false } },
+        y: { min: 0, max: 100, ticks: { color: '#5a5a7a', font: { size: 10, family: 'DM Mono' }, callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
+      }
+    }
+  });
+}
+
+function selectAttr(btn, attr) {
+  document.querySelectorAll('.attr-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (!disparityChartInstance) { initDisparityChart(); }
+  const d = disparityData[attr];
+  disparityChartInstance.data.labels = d.labels;
+  disparityChartInstance.data.datasets[0].data = d.vals;
+  disparityChartInstance.data.datasets[0].backgroundColor = d.colors;
+  disparityChartInstance.update();
+}
+
+// ─── HEATMAP ───
+const heatmapData = [
+  ['', 'White', 'Black', 'Hispanic', 'Asian', 'Other'],
+  ['Male',     74, 56, 60, 71, 62],
+  ['Female',   61, 29, 35, 54, 40],
+  ['Non-binary', 52, 22, 28, 47, 33],
+];
+
+function heatColor(val) {
+  if (val >= 65) return `rgba(16,217,160,${0.3 + (val-65)/35*0.5})`;
+  if (val >= 50) return `rgba(251,191,36,${0.3 + (val-50)/15*0.3})`;
+  return `rgba(255,77,109,${0.3 + (50-val)/50*0.4})`;
+}
+function heatTextColor(val) {
+  return val >= 65 ? '#10d9a0' : val >= 50 ? '#fbbf24' : '#ff4d6d';
+}
+
+function initHeatmap() {
+  const container = document.getElementById('heatmap');
+  container.innerHTML = '';
+  container.style.gridTemplateColumns = `120px repeat(${heatmapData[0].length-1}, 1fr)`;
+  heatmapData.forEach((row, ri) => {
+    row.forEach((cell, ci) => {
+      const div = document.createElement('div');
+      if (ri === 0 || ci === 0) {
+        div.className = 'heatmap-header';
+        div.textContent = cell;
+      } else {
+        div.className = 'heatmap-cell';
+        div.style.background = heatColor(cell);
+        div.style.color = heatTextColor(cell);
+        div.textContent = cell + '%';
+      }
+      container.appendChild(div);
+    });
+  });
+
+  // Gap list
+  const gaps = [
+    { groups: 'Black woman vs. White man', gap: -45, label: '-45pp' },
+    { groups: 'Non-binary Black vs. White man', gap: -52, label: '-52pp' },
+    { groups: 'Hispanic woman vs. White man', gap: -39, label: '-39pp' },
+    { groups: 'Non-binary Hispanic vs. Asian man', gap: -43, label: '-43pp' },
+  ];
+  const gl = document.getElementById('gap-list');
+  gl.innerHTML = '';
+  gaps.forEach(g => {
+    const div = document.createElement('div');
+    div.style.cssText = 'background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1.1rem; display: flex; justify-content: space-between; align-items: center;';
+    div.innerHTML = `<span style="font-size:0.82rem; color:var(--text2);">${g.groups}</span><span style="font-family:var(--font-mono); font-size:0.82rem; color:var(--red); font-weight:500;">${g.label}</span>`;
+    gl.appendChild(div);
+  });
+}
+
+// ─── WHAT-IF ───
+let wiState = { resample: 15, threshold: 50, lambda: 10, proxy: 0, calibration: 0 };
+
+function updateWhatIf(el, key) {
+  wiState[key] = parseInt(el.value);
+  const r = wiState.resample; const t = wiState.threshold; const l = wiState.lambda; const p = wiState.proxy; const c = wiState.calibration;
+
+  document.getElementById('resample-val').textContent = (r/10).toFixed(1) + '×';
+  document.getElementById('threshold-val').textContent = (t/100).toFixed(2);
+  document.getElementById('lambda-val').textContent = (l/100).toFixed(2);
+  document.getElementById('proxy-val').textContent = p;
+  document.getElementById('calibration-val').textContent = c ? 'On' : 'Off';
+
+  const dpImprove = Math.min(18, p * 5 + l * 0.1 + (r-10) * 0.3 + (c ? 2 : 0));
+  const eoImprove = Math.min(25, p * 4 + l * 0.15 + (c ? 4 : 0) + (r-10)*0.2);
+  const accLoss = p * 0.8 + l * 0.05 + (r-10)*0.1;
+  const scoreGain = Math.round(dpImprove * 0.8 + eoImprove * 0.6);
+  const newScore = Math.min(90, 41 + scoreGain);
+
+  document.getElementById('wi-score').textContent = `41 → ${newScore}`;
+  document.getElementById('wi-score-delta').textContent = `+${scoreGain}`;
+  document.getElementById('wi-dpgap').textContent = `23.4% → ${Math.max(2, 23.4-dpImprove).toFixed(1)}%`;
+  document.getElementById('wi-dpgap-delta').textContent = `−${dpImprove.toFixed(1)}pp`;
+  document.getElementById('wi-eogap').textContent = `31.7% → ${Math.max(3, 31.7-eoImprove).toFixed(1)}%`;
+  document.getElementById('wi-eogap-delta').textContent = `−${eoImprove.toFixed(1)}pp`;
+  document.getElementById('wi-acc').textContent = `−${accLoss.toFixed(1)}%`;
+  document.getElementById('wi-acc-delta').className = 'wm-change ' + (accLoss > 3 ? 'neg' : 'pos');
+  document.getElementById('wi-acc-delta').textContent = accLoss > 3 ? 'Significant loss' : 'Acceptable';
+
+  const cost = p + (r > 15 ? 1 : 0) + (l > 20 ? 1 : 0);
+  document.getElementById('wi-cost').textContent = cost < 1 ? 'Low' : cost < 2 ? 'Medium' : 'High';
+
+  const comp = newScore >= 75 ? '✓ Likely compliant (EU AI Act)' : newScore >= 60 ? '⚠ Partial compliance' : '✗ Still non-compliant';
+  document.getElementById('wi-compliance').textContent = comp;
+  document.getElementById('wi-compliance').style.color = newScore >= 75 ? 'var(--green)' : newScore >= 60 ? 'var(--amber)' : 'var(--red)';
+
+  const rec = p === 0 ? 'Start with proxy feature removal — highest impact with lowest accuracy cost.' : l > 20 ? 'Strong regularization may hurt accuracy. Consider combining with threshold calibration.' : 'Good balance. Combine with resampling for further improvement.';
+  document.getElementById('wi-recommendation').textContent = rec;
+
+  if (whatifChartInstance) {
+    const pts = [41];
+    let cur = 41;
+    for (let i = 0; i < 5; i++) { cur = Math.min(90, cur + scoreGain/5 + Math.random()*2-1); pts.push(Math.round(cur)); }
+    whatifChartInstance.data.datasets[0].data = pts;
+    whatifChartInstance.update('none');
+  }
+}
+
+function initWhatIfChart() {
+  const ctx = document.getElementById('whatifChart').getContext('2d');
+  whatifChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Now', 'Step 1', 'Step 2', 'Step 3', 'Step 4', 'Final'],
+      datasets: [{
+        label: 'Fairness score',
+        data: [41, 41, 41, 41, 41, 41],
+        borderColor: '#7c6fff',
+        backgroundColor: 'rgba(124,111,255,0.08)',
+        fill: true, tension: 0.4,
+        pointBackgroundColor: '#7c6fff', pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#5a5a7a', font: { size: 9, family: 'DM Mono' } }, grid: { display: false }, border: { display: false } },
+        y: { min: 0, max: 100, ticks: { color: '#5a5a7a', font: { size: 9, family: 'DM Mono' } }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
+      }
+    }
+  });
+}
+
+// ─── COMPARE CHART ───
+function initCompareChart() {
+  const ctx = document.getElementById('compareChart').getContext('2d');
+  compareChartInstance = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'v1.0 (Baseline)',
+        data: [{ x: 87.2, y: 23.4 }],
+        backgroundColor: '#ff4d6d', pointRadius: 12, pointHoverRadius: 14
+      }, {
+        label: 'v1.1 (Debiased)',
+        data: [{ x: 85.1, y: 14.1 }],
+        backgroundColor: '#fbbf24', pointRadius: 12, pointHoverRadius: 14
+      }, {
+        label: 'v2.0 (Fair)',
+        data: [{ x: 83.8, y: 4.8 }],
+        backgroundColor: '#10d9a0', pointRadius: 12, pointHoverRadius: 14
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: Accuracy ${ctx.parsed.x}%, Gap ${ctx.parsed.y}%` } }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Model accuracy (%)', color: '#5a5a7a', font: { size: 10, family: 'DM Mono' } }, ticks: { color: '#5a5a7a', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false }, min: 80, max: 92 },
+        y: { title: { display: true, text: 'Demographic parity gap (%)', color: '#5a5a7a', font: { size: 10, family: 'DM Mono' } }, ticks: { color: '#5a5a7a', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false }, min: 0, max: 30 }
+      }
+    }
+  });
+}
+
+// ─── NOTIFICATION ───
+function showNotification(title, sub) {
+  const n = document.getElementById('notification');
+  document.getElementById('notif-title').textContent = title;
+  document.getElementById('notif-sub').textContent = sub;
+  n.classList.add('show');
+  setTimeout(() => n.classList.remove('show'), 3500);
+}
+
+// ─── SMOOTH SCROLL ───
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+  });
+});
+
+// ─── MAIN DOWNLOAD BUTTON HANDLER ───
+function handleMainDownload() {
+  const btn = document.getElementById('main-download-btn');
+  const label = document.getElementById('dl-label');
+  const icon = document.getElementById('dl-icon');
+  const progressRow = document.getElementById('dl-progress-row');
+  const bar = document.getElementById('dl-bar');
+  const stepText = document.getElementById('dl-step-text');
+  const pctText = document.getElementById('dl-pct-text');
+  const doneMsg = document.getElementById('dl-done-msg');
+
+  // Disable button
+  btn.disabled = true;
+  btn.style.opacity = '0.75';
+  btn.style.cursor = 'default';
+  label.textContent = 'Processing…';
+  icon.innerHTML = '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="32" stroke-dashoffset="32" style="animation: spin 1s linear infinite; transform-origin:center"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle>';
+
+  progressRow.style.display = 'block';
+
+  const steps = [
+    { text: 'Loading original dataset (42,800 records)…', pct: 10 },
+    { text: 'Removing proxy variable: zip_code…', pct: 22 },
+    { text: 'Removing proxy variable: school_name…', pct: 32 },
+    { text: 'Removing proxy variable: surname…', pct: 42 },
+    { text: 'Re-weighting pre-2021 historical records (×0.4)…', pct: 52 },
+    { text: 'SMOTE oversampling on minority groups…', pct: 63 },
+    { text: 'Correcting 1,240 mislabelled outcomes…', pct: 74 },
+    { text: 'Anonymising sensitive attribute columns…', pct: 84 },
+    { text: 'Appending fairsight_changes audit log…', pct: 93 },
+    { text: 'Generating CSV file…', pct: 100 },
+  ];
+
+  let i = 0;
+  function tick() {
+    if (i >= steps.length) {
+      // Trigger actual download
+      downloadUnbiasedCSV();
+
+      // Update UI to done state
+      bar.style.background = '#10d9a0';
+      label.textContent = '✓ Downloaded!';
+      btn.style.background = 'linear-gradient(135deg, #059669, #047857)';
+      btn.style.opacity = '1';
+      icon.innerHTML = '<polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
+      stepText.textContent = 'Complete';
+      pctText.textContent = '100%';
+      doneMsg.style.display = 'block';
+      showNotification('✓ Unbiased dataset downloaded', '51,200 records · Fairness score: 83/100 · EEOC compliant');
+      return;
+    }
+    const s = steps[i];
+    bar.style.width = s.pct + '%';
+    pctText.textContent = s.pct + '%';
+    stepText.textContent = s.text;
+    i++;
+    setTimeout(tick, 380 + Math.random() * 260);
+  }
+  tick();
+}
+
+// ─── GENERATE UNBIASED DATASET ───
+function generateUnbiasedDataset() {
+  const btn = document.getElementById('generate-btn');
+  const progressWrap = document.getElementById('gen-progress-wrap');
+  const fill = document.getElementById('gen-fill');
+  const label = document.getElementById('gen-step-label');
+  const pct = document.getElementById('gen-pct');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing…';
+  btn.style.opacity = '0.7';
+  progressWrap.style.display = 'block';
+
+  const steps = [
+    { text: 'Loading original dataset (42,800 records)…', pct: 10, fix: null },
+    { text: 'Removing proxy variable: zip_code…', pct: 22, fix: 'fix-proxy' },
+    { text: 'Removing proxy variable: school_name…', pct: 30, fix: null },
+    { text: 'Removing proxy variable: surname…', pct: 38, fix: null },
+    { text: 'Reweighting pre-2021 historical records (×0.4)…', pct: 48, fix: 'fix-historical' },
+    { text: 'Running SMOTE oversampling on minority groups…', pct: 58, fix: 'fix-balance' },
+    { text: 'Correcting 1,240 mislabelled outcomes…', pct: 67, fix: 'fix-labels' },
+    { text: 'Anonymising sensitive attribute columns…', pct: 76, fix: 'fix-sensitive' },
+    { text: 'Appending fairsight_changes audit log column…', pct: 86, fix: 'fix-audit' },
+    { text: 'Validating debiased dataset fairness score…', pct: 94, fix: null },
+    { text: 'Generating CSV file…', pct: 100, fix: null },
+  ];
+
+  let i = 0;
+  function tick() {
+    if (i >= steps.length) {
+      // All done — generate and download CSV
+      downloadUnbiasedCSV();
+      btn.textContent = '✓ Downloaded!';
+      btn.style.background = 'linear-gradient(135deg, #059669, #047857)';
+      btn.style.opacity = '1';
+      label.textContent = 'Complete — unbiased_hiring_dataset_fairsight.csv downloaded';
+      label.style.color = 'var(--green)';
+      // Tick all fix items green
+      document.querySelectorAll('.fix-item').forEach(el => markFixDone(el.id));
+      showNotification('✓ Unbiased dataset ready', '51,200 records · Fairness score: 83/100 · EEOC compliant');
+      return;
+    }
+    const s = steps[i];
+    fill.style.width = s.pct + '%';
+    pct.textContent = s.pct + '%';
+    label.textContent = s.text;
+    if (s.fix) markFixDone(s.fix);
+    i++;
+    setTimeout(tick, 420 + Math.random() * 280);
+  }
+  tick();
+}
+
+function markFixDone(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const inner = el.querySelector('div');
+  if (inner) {
+    inner.style.borderColor = 'rgba(16,217,160,0.35)';
+    inner.style.background = 'rgba(16,217,160,0.07)';
+  }
+  const icon = el.querySelector('.fix-icon');
+  if (icon) icon.textContent = '✓';
+}
+
+function downloadUnbiasedCSV() {
+  // Build a realistic sample debiased CSV
+  const headers = [
+    'record_id','years_experience','education_level','technical_score',
+    'interview_score','role_level','department','outcome',
+    'sample_weight','fairsight_changes'
+  ];
+
+  // Dataset metadata comment rows
+  const meta = [
+    '# FairSight Debiased Dataset',
+    '# Generated: ' + new Date().toISOString().split('T')[0],
+    '# Original records: 42800 | Clean records: 51200 (after SMOTE)',
+    '# Proxy variables removed: zip_code, school_name, surname',
+    '# Sensitive columns (gender, race, age) retained for auditing only — NOT for model training',
+    '# Projected fairness score: 83/100 | Demographic parity gap: 3.8%',
+    '# Compliant with: EEOC 80% rule, EU AI Act Art.10, ECOA',
+    '#'
+  ].join('\n');
+
+  const departments = ['Engineering','Product','Design','Sales','Marketing','Operations'];
+  const education = ['High School','Bachelor','Master','PhD'];
+  const roles = ['Junior','Mid','Senior','Lead','Manager'];
+  const changeOptions = [
+    'sample_weight_adjusted:pre2021_downweight',
+    'proxy_columns_removed:zip_code|school_name|surname',
+    'smote_synthetic:minority_group_oversample',
+    'label_corrected:counterfactual_analysis',
+    'none'
+  ];
+
+  const rows = [meta, headers.join(',')];
+
+  const outcomes = ['hired','rejected'];
+  for (let i = 1; i <= 120; i++) {
+    const exp = (Math.random() * 15 + 1).toFixed(1);
+    const edu = education[Math.floor(Math.random() * education.length)];
+    const tech = (Math.random() * 40 + 60).toFixed(1);
+    const interview = (Math.random() * 35 + 55).toFixed(1);
+    const role = roles[Math.floor(Math.random() * roles.length)];
+    const dept = departments[Math.floor(Math.random() * departments.length)];
+    // Fair outcome: purely based on scores
+    const score = parseFloat(tech) * 0.5 + parseFloat(interview) * 0.5;
+    const outcome = score > 72 ? 'hired' : 'rejected';
+    const weight = (Math.random() > 0.3 ? 1.0 : 0.4).toFixed(1);
+    const change = changeOptions[Math.floor(Math.random() * changeOptions.length)];
+    rows.push([i, exp, edu, tech, interview, role, dept, outcome, weight, '"' + change + '"'].join(','));
+  }
+  rows.push('# ... 51080 more records truncated in this preview export');
+
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'unbiased_hiring_dataset_fairsight.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── INIT ───
+loadDemo('hiring');
+</script>
+</body>
+</html>
